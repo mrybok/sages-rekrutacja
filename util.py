@@ -1,9 +1,23 @@
-import random
+import numpy as np
 import pandas as pd
 import networkx as nx
 
 from tqdm.auto import tqdm
 from collections import Counter
+
+
+def score_to_prob(candidates: dict) -> np.array:
+    """
+    Turns the scores to probability distribution for sampling.
+
+    :param candidates: dictionary mapping candidate node to its score
+    :return: probability distribution,
+    """
+    prob = np.array(list(candidates.values()))
+    prob = prob + 1 - min(prob)
+    prob = prob / sum(prob)
+
+    return prob
 
 
 def split_data(stances: pd.DataFrame, valid_size: float = 0.1, seed: int = 0) -> pd.DataFrame:
@@ -16,12 +30,10 @@ def split_data(stances: pd.DataFrame, valid_size: float = 0.1, seed: int = 0) ->
     :param stances: DataFrame with Headline IDs, Body IDs and Stances
     :param valid_size: ratio of connections in the validation set
     :param seed: Random number generator seed
-    :return: stances DataFrame with new 'split' column.
+    :return: new_stances DataFrame with new 'split' column.
     """
 
     assert 1 > valid_size > 0, 'Invalid valid_size value'
-
-    random.seed(seed)
 
     stances_iter = stances.itertuples(index=False)
 
@@ -30,23 +42,22 @@ def split_data(stances: pd.DataFrame, valid_size: float = 0.1, seed: int = 0) ->
     graph = nx.Graph(edges)
 
     # scores guide the BFS expansion
-    # expand connected component by adding node with the least score
-    # score is +1 for every edge with node out validation set
-    #          -1 for evert edge with node  in validation set
+    # node's score is +1 for every edge with node  in validation set
+    #                 -1 for every edge with node out validation set
     # Heuristic for building splits with high intra- and low inter-split connectivity.
-    scores = {node: len(list(graph.neighbors(node))) for node in graph.nodes}
+    scores = {node: -len(list(graph.neighbors(node))) for node in graph.nodes}
 
-    # Start search from the least connected node.
-    first_nodes = sorted(scores.items(), key=lambda x: x[1])
-    first_nodes = [node[0] for node in first_nodes if node[1] == first_nodes[0][1]]
-    first_node = random.choice(first_nodes)
+    rng = np.random.RandomState(seed)
+
+    # Sample first_node - the least connected nodes are most likely selected.
+    first_node = rng.choice(list(scores), p=score_to_prob(scores))
 
     # Valid nodes - nodes assigned to validation set
     valid_nodes = [first_node]
 
     # Update neighbor scores.
     for neighbor in graph.neighbors(first_node):
-        scores[neighbor] -= 2
+        scores[neighbor] += 2
 
     # Frontier - edges between validation and train components
     frontier = list(graph.edges(valid_nodes[0], data=True))
@@ -58,7 +69,7 @@ def split_data(stances: pd.DataFrame, valid_size: float = 0.1, seed: int = 0) ->
     # set of required size
     valid_dist = Counter({stance: int(count * valid_size) for stance, count in dist})
 
-    pbar = tqdm(total=sum(valid_dist.values()))
+    pbar = tqdm(total=int(sum(valid_dist.values())))
 
     while any([count > 0 for count in valid_dist.values()]):
 
@@ -69,12 +80,10 @@ def split_data(stances: pd.DataFrame, valid_size: float = 0.1, seed: int = 0) ->
             candidates = frontier
 
         candidates = [edge[0] if edge[1] in valid_nodes else edge[1] for edge in candidates]
-        candidates = [(node, scores[node]) for node in candidates]
+        candidates = {node: scores[node] for node in candidates}
 
-        # Expand with node of the least score
-        candidates = sorted(candidates, key=lambda x: x[1])
-        candidates = [candidate[0] for candidate in candidates if candidate[1] == candidates[0][1]]
-        new_node = random.choice(candidates)
+        # Sample a node for expansion
+        new_node = rng.choice(list(candidates), p=score_to_prob(candidates))
         valid_nodes += [new_node]
 
         # Remove intra-validation-set edges resulting from adding new node
@@ -91,7 +100,7 @@ def split_data(stances: pd.DataFrame, valid_size: float = 0.1, seed: int = 0) ->
                     pbar.update(1)
             else:
                 frontier += [(new_node, neighbor, edge_data)]
-                scores[neighbor] -= 2
+                scores[neighbor] += 2
 
     pbar.close()
 
