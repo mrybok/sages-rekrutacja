@@ -1,25 +1,27 @@
+import random
 import pandas as pd
 import networkx as nx
 
+from tqdm.auto import tqdm
 from collections import Counter
 
 
-def split_data(stances: pd.DataFrame, valid_size: float = 0.05) -> pd.DataFrame:
+def split_data(stances: pd.DataFrame, valid_size: float = 0.1, seed: int = 0) -> pd.DataFrame:
     """
     Use BFS to split the dataset into train and validation sets, so that every body and headline
     belongs only to one of the sets and there are no inter-set pairings.
     The returned stances DataFrame has a new 'split'
-    column indicating body-headline pair split assignment:
-    1 - valid,
-    0 - train,
-    -1 - inter-set pair.
+    column indicating body-headline pair split assignment.
 
     :param stances: DataFrame with Headline IDs, Body IDs and Stances
     :param valid_size: ratio of connections in the validation set
+    :param seed: Random number generator seed
     :return: stances DataFrame with new 'split' column.
     """
 
     assert 1 > valid_size > 0, 'Invalid valid_size value'
+
+    random.seed(seed)
 
     stances_iter = stances.itertuples(index=False)
 
@@ -35,7 +37,9 @@ def split_data(stances: pd.DataFrame, valid_size: float = 0.05) -> pd.DataFrame:
     scores = {node: len(list(graph.neighbors(node))) for node in graph.nodes}
 
     # Start search from the least connected node.
-    first_node = sorted(scores.items(), key=lambda x: x[1])[0][0]
+    first_nodes = sorted(scores.items(), key=lambda x: x[1])
+    first_nodes = [node[0] for node in first_nodes if node[1] == first_nodes[0][1]]
+    first_node = random.choice(first_nodes)
 
     # Valid nodes - nodes assigned to validation set
     valid_nodes = [first_node]
@@ -54,6 +58,8 @@ def split_data(stances: pd.DataFrame, valid_size: float = 0.05) -> pd.DataFrame:
     # set of required size
     valid_dist = Counter({stance: int(count * valid_size) for stance, count in dist})
 
+    pbar = tqdm(total=sum(valid_dist.values()))
+
     while any([count > 0 for count in valid_dist.values()]):
 
         # Consider only edges of which stance is still needed in the validation set
@@ -67,7 +73,8 @@ def split_data(stances: pd.DataFrame, valid_size: float = 0.05) -> pd.DataFrame:
 
         # Expand with node of the least score
         candidates = sorted(candidates, key=lambda x: x[1])
-        new_node = candidates[0][0]
+        candidates = [candidate[0] for candidate in candidates if candidate[1] == candidates[0][1]]
+        new_node = random.choice(candidates)
         valid_nodes += [new_node]
 
         # Remove intra-validation-set edges resulting from adding new node
@@ -77,26 +84,32 @@ def split_data(stances: pd.DataFrame, valid_size: float = 0.05) -> pd.DataFrame:
             edge_data = graph.get_edge_data(new_node, neighbor)
 
             if neighbor in valid_nodes:
-                valid_dist[edge_data['stance']] -= 1
+                stance = edge_data['stance']
+                valid_dist[stance] -= 1
+
+                if valid_dist[stance] >= 0:
+                    pbar.update(1)
             else:
                 frontier += [(new_node, neighbor, edge_data)]
                 scores[neighbor] -= 2
 
-    def train_or_valid(row: pd.core.series.Series) -> int:
+    pbar.close()
+
+    def train_or_valid(row: pd.core.series.Series) -> str:
         """
-        Assign a flag to a body-heading pair of stances table, indicating assigned split:
-        1 - valid, 0 - train, -1 - none.
+        Assign a flag to a body-heading pair of stances table, indicating assigned split.
 
         :param row: row of stances pandas DataFrame
         :return: row split assignment
         """
         if row['Headline'] in valid_nodes and row['Body ID'] in valid_nodes:
-            return 1
+            return 'valid'
         elif row['Headline'] not in valid_nodes and row['Body ID'] not in valid_nodes:
-            return 0
+            return 'train'
 
-        return -1
+        return 'none'
 
-    stances['split'] = stances.apply(lambda row: train_or_valid(row), axis=1)
+    new_stances = stances.copy()
+    new_stances['split'] = stances.apply(lambda row: train_or_valid(row), axis=1)
 
-    return stances
+    return new_stances
