@@ -17,7 +17,7 @@ if __name__ == "__main__":
     model = model.to(device)
 
     for split in ['train', 'valid', 'none', 'test']:
-        with open(f'temp/{split}.pkl', 'rb') as file:
+        with open(f'preprocessed/fake_news/bert_loaders/{split}.pkl', 'rb') as file:
             loader = pickle.load(file)
 
         X = []
@@ -33,5 +33,5 @@ if __name__ == "__main__":
 
             X += [out]
 
-        with open(f'preprocessed/fake_news/{split}.pkl', 'wb') as file:
+        with open(f'preprocessed/fake_news/embeddings/{split}.pkl', 'wb') as file:
             pickle.dump({'X': torch.cat(X)}, file)
