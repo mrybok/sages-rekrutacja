@@ -1,7 +1,7 @@
 # sages-rekrutacja
 
 ---
-### dependencies
+## Dependencies
 `pip install requirements.txt`
 
 or 
@@ -13,6 +13,7 @@ or
 `conda env create -f environment.yml`
 
 ---
+# Files
 
 `Fake_News_Exploration.ipynb`
 - *"fake news"* dataset analysis and pre-processing
@@ -39,6 +40,8 @@ splits in `./preprocessed/fake_news/embeddings/<split_name>.pkl` files.
 
 
 ---
+
+## Classifier
 The *"fake news"* classifier is a simple linear head, mapping the 768 dimensional BERT < CLS > token
 embedding into 4 classes:
 
