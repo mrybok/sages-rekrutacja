@@ -28,8 +28,8 @@ class FakeNewsTokenizer:
             self.text_dicts = pickle.load(file)
 
     def tokenize_texts(self, verbose: bool = False):
-        total = sum([len(text_dict) for text_dict in self.text_dicts])
-        pbar = tqdm(total=total, disable=verbose)
+        total = sum([len(text_dict) for text_dict in self.text_dicts.values()])
+        pbar = tqdm(total=total, disable=not verbose, desc="tokenization")
 
         for text_dict in self.text_dicts.values():
             for text_id in text_dict:
@@ -49,7 +49,9 @@ class FakeNewsTokenizer:
         segments = []
         attention_masks = []
 
-        for row in tqdm(list(pairs.itertuples(index=False)), disable=verbose):
+        iterator = list(pairs.itertuples(index=False))
+
+        for row in tqdm(iterator, disable=not verbose, desc="BERT input preparation"):
             head_id, body_id = row
 
             head_input_ids = self.text_dicts['head'][head_id]['input_ids']
