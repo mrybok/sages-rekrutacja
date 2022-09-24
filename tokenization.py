@@ -1,16 +1,8 @@
 import argparse
 import transformers
 
-from defaults import DEFAULT_TEXT_DICTS_PATH
-from fake_news.tokenizer import FakeNewsTokenizer
-
-
-def tokenize_texts(in_file: str, out_file: str, verbose: bool):
-    tokenizer = FakeNewsTokenizer()
-
-    tokenizer.load_text_dicts(in_file)
-    tokenizer.tokenize_texts(verbose)
-    tokenizer.save_text_dicts(out_file)
+from fake_news.util import tokenize_texts
+from fake_news.defaults import DEFAULT_TEXT_DICTS_PATH
 
 
 if __name__ == "__main__":
