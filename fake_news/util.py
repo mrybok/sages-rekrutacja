@@ -154,7 +154,7 @@ def get_embeddings(
     embeddings = {'X': [], 'y': []}
 
     if 'Stance' in stances.columns:
-        ys = [LABELS[stance] for stance in stances['Stances']]
+        ys = [LABELS[stance] for stance in stances['Stance']]
         embeddings['y'] = torch.tensor(ys)
 
     device = 'cpu'
