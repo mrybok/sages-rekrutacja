@@ -41,7 +41,7 @@ class FakeNewsTokenizer:
         pbar.close()
 
     def get_bert_input(self, pairs: pd.DataFrame, verbose: bool = False) -> TensorDataset:
-        assert pairs.columns == ['Headline ID', 'Body ID'], 'wrong input format'
+        assert list(pairs.columns) == ['Headline ID', 'Body ID'], 'wrong input format'
         assert all([head_id in self.text_dicts['head'] for head_id in pairs['Headline ID']]), 'unknown Headline ID in pairs'
         assert all([body_id in self.text_dicts['body'] for body_id in pairs['Body ID']]), 'unknown Body ID in pairs'
 

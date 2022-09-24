@@ -1,9 +1,8 @@
 import argparse
 import transformers
 
+from defaults import DEFAULT_TEXT_DICTS_PATH
 from fake_news.tokenizer import FakeNewsTokenizer
-
-DEFAULT_TEXT_DICTS_PATH = "preprocessed/fake_news/data/text_dicts.pkl"
 
 
 def tokenize_texts(in_file: str, out_file: str, verbose: bool):
@@ -21,7 +20,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--text_dicts", type=str, help="path to saved text_dicts .pkl file", default=DEFAULT_TEXT_DICTS_PATH)
     parser.add_argument("--output_file", type=str, help="where to save new text_dicts file with input ids after tokenization", default=DEFAULT_TEXT_DICTS_PATH)
-    parser.add_argument("--verbose", help="whether to log tokenization progress with tqdm", action='store_true')
+    parser.add_argument("--verbose", help="whether to log progress with tqdm", action='store_true')
 
     args = parser.parse_args()
 
