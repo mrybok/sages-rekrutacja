@@ -30,7 +30,7 @@ def split_data(stances: pd.DataFrame, valid_size: float = 0.1, seed: int = 0) ->
     :param stances: DataFrame with Headline IDs, Body IDs and Stances
     :param valid_size: ratio of connections in the validation set
     :param seed: Random number generator seed
-    :return: new_stances DataFrame with new 'split' column.
+    :return: new_stances DataFrame with new 'Split' column.
     """
 
     assert 1 > valid_size > 0, 'Invalid valid_size value'
@@ -38,11 +38,11 @@ def split_data(stances: pd.DataFrame, valid_size: float = 0.1, seed: int = 0) ->
     stances_iter = stances.itertuples(index=False)
 
     # Build graph where headlines and bodies are nodes, while their pairings are edges
-    edges = [(head, body, {'stance': stance}) for head, body, stance in stances_iter]
+    edges = [(head, body, {'Stance': stance}) for head, body, stance in stances_iter]
     graph = nx.Graph(edges)
 
     # scores guide the BFS expansion
-    # node's score is +1 for every edge with node  in validation set
+    # node's score is +1 for every edge with node in validation set
     #                 -1 for every edge with node out validation set
     # Heuristic for building splits with high intra- and low inter-split connectivity.
     scores = {node: -len(list(graph.neighbors(node))) for node in graph.nodes}
@@ -74,7 +74,7 @@ def split_data(stances: pd.DataFrame, valid_size: float = 0.1, seed: int = 0) ->
     while any([count > 0 for count in valid_dist.values()]):
 
         # Consider only edges of which stance is still needed in the validation set
-        candidates = [edge for edge in frontier if edge[2]['stance'] in valid_dist]
+        candidates = [edge for edge in frontier if edge[2]['Stance'] in valid_dist]
 
         if len(candidates) == 0:
             candidates = frontier
@@ -93,7 +93,7 @@ def split_data(stances: pd.DataFrame, valid_size: float = 0.1, seed: int = 0) ->
             edge_data = graph.get_edge_data(new_node, neighbor)
 
             if neighbor in valid_nodes:
-                stance = edge_data['stance']
+                stance = edge_data['Stance']
                 valid_dist[stance] -= 1
 
                 if valid_dist[stance] >= 0:
@@ -111,14 +111,14 @@ def split_data(stances: pd.DataFrame, valid_size: float = 0.1, seed: int = 0) ->
         :param row: row of stances pandas DataFrame
         :return: row split assignment
         """
-        if row['Headline'] in valid_nodes and row['Body ID'] in valid_nodes:
+        if row['Headline ID'] in valid_nodes and row['Body ID'] in valid_nodes:
             return 'valid'
-        elif row['Headline'] not in valid_nodes and row['Body ID'] not in valid_nodes:
+        elif row['Headline ID'] not in valid_nodes and row['Body ID'] not in valid_nodes:
             return 'train'
 
         return 'none'
 
     new_stances = stances.copy()
-    new_stances['split'] = stances.apply(lambda row: train_or_valid(row), axis=1)
+    new_stances['Split'] = stances.apply(lambda row: train_or_valid(row), axis=1)
 
     return new_stances
