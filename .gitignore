@@ -131,3 +131,4 @@ dmypy.json
 # PyCharm
 /.idea
 results/
+preprocessed/fake_news/embeddings/all.pkl
