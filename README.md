@@ -4,6 +4,18 @@
 Post-deadline code cleaning in this branch.
 
 ---
+### Dependencies
+`pip install requirements.txt`
+
+or 
+
+`conda create --name <env> --file requirements.txt`
+
+or 
+
+`conda env create -f environment.yml`
+
+---
 
 ## Fake News Pipeline
 
