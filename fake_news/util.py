@@ -1,19 +1,25 @@
+import os
 import torch
 import pickle
 
 import numpy as np
 import pandas as pd
 import networkx as nx
+import torch.nn as nn
+import sklearn.metrics as metrics
 
 from typing import Dict
 from tqdm.auto import tqdm
+from tqdm.auto import trange
+from torch.optim import Adam
 from collections import Counter
+from fake_news.defaults import LABELS
 from torch.utils.data import DataLoader
+from torch.utils.data import TensorDataset
 from fake_news.tokenizer import FakeNewsTokenizer
 from fake_news.classifier import FakeNewsClassifier
 
-from fake_news.defaults import LABELS
-
+from torch.utils.tensorboard import SummaryWriter
 
 def score_to_prob(candidates: dict) -> np.array:
     """
@@ -133,6 +139,24 @@ def split_data(stances: pd.DataFrame, valid_size: float = 0.1, seed: int = 0) ->
     return new_stances
 
 
+def tokenize_texts(in_file: str, out_file: str, verbose: bool):
+    tokenizer = FakeNewsTokenizer()
+
+    tokenizer.load_text_dicts(in_file)
+    tokenizer.tokenize_texts(verbose)
+    tokenizer.save_text_dicts(out_file)
+
+
+def check_for_gpu(gpu: bool) -> str:
+    device = 'cpu'
+
+    if gpu and torch.cuda.is_available():
+        device = 'cuda'
+    elif gpu and not torch.cuda.is_available():
+        print('CUDA not available')
+
+    return device
+
 def get_embeddings(
         stances: str,
         text_dicts: str,
@@ -157,13 +181,7 @@ def get_embeddings(
         ys = [LABELS[stance] for stance in stances['Stance']]
         embeddings['y'] = torch.tensor(ys)
 
-    device = 'cpu'
-
-    if gpu and torch.cuda.is_available():
-        device = 'cuda'
-    elif gpu and not torch.cuda.is_available():
-        print('CUDA not available')
-
+    device = check_for_gpu(gpu)
     model = FakeNewsClassifier()
 
     model.bert.to(device)
@@ -189,9 +207,123 @@ def get_embeddings(
     return embeddings
 
 
-def tokenize_texts(in_file: str, out_file: str, verbose: bool):
-    tokenizer = FakeNewsTokenizer()
+def train_classifier_head(
+        train_set: str,
+        experiment_dir: str,
+        valid_set: str = None,
+        batch_size: int = 1,
+        epochs: int = 100,
+        gpu: bool = False,
+        tensorboard: bool = False,
+):
+    try:
+        os.mkdir(experiment_dir)
+    except OSError:
+        pass
 
-    tokenizer.load_text_dicts(in_file)
-    tokenizer.tokenize_texts(verbose)
-    tokenizer.save_text_dicts(out_file)
+    writer = SummaryWriter(experiment_dir) if tensorboard else None
+
+    with open(train_set, 'rb') as file:
+        train_dataset = pickle.load(file)
+
+    loaders = {}
+
+    train_dataset = TensorDataset(*train_dataset.values())
+    loaders['train'] = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+
+    if valid_set is not None:
+        with open(valid_set, 'rb') as file:
+            valid_dataset = pickle.load(file)
+
+        valid_dataset = TensorDataset(*valid_dataset.values())
+        loaders['valid'] = DataLoader(valid_dataset, batch_size=batch_size, shuffle=True)
+
+    model = FakeNewsClassifier()
+    criterion = nn.CrossEntropyLoss()
+    optim = Adam(model.head.parameters())
+    device = check_for_gpu(gpu)
+
+    model.eval()
+    model.head.to(device)
+
+    for epoch in trange(epochs):
+        model.head.train()
+
+        train_loss = 0
+        train_true = []
+        train_pred = []
+
+        for data, target in loaders['train']:
+            train_true += [target.numpy()]
+
+            data = data.to(device)
+            target = target.to(device)
+
+            out = model(data)
+            loss = criterion(out, target)
+            train_loss += loss.item()
+            train_pred += [torch.argmax(out, dim=1).cpu().numpy()]
+
+            optim.zero_grad()
+            loss.backward()
+            optim.step()
+
+        train_true = np.concatenate(train_true)
+        train_pred = np.concatenate(train_pred)
+
+        train_loss /= len(loaders['train'])
+        train_acc = metrics.accuracy_score(train_true, train_pred) * 100
+        train_f1 = metrics.f1_score(train_true, train_pred, average='macro') * 100
+
+        if valid_set is not None:
+            valid_loss = 0
+            valid_true = []
+            valid_pred = []
+
+            model.head.eval()
+
+            with torch.no_grad():
+                for data, target in loaders['valid']:
+                    valid_true += [target.numpy()]
+
+                    data = data.to(device)
+                    target = target.to(device)
+
+                    out = model(data)
+                    loss = criterion(out, target)
+                    valid_loss += loss.item()
+                    valid_pred += [torch.argmax(out, dim=1).cpu().numpy()]
+
+            valid_true = np.concatenate(valid_true)
+            valid_pred = np.concatenate(valid_pred)
+
+            valid_loss /= len(loaders['valid'])
+            valid_acc = metrics.accuracy_score(valid_true, valid_pred) * 100
+            valid_f1 = metrics.f1_score(valid_true, valid_pred, average='macro') * 100
+
+            if tensorboard:
+                writer.add_scalars('loss', {'train': train_loss, 'valid': valid_loss}, epoch)
+                writer.add_scalars('acc', {'train': train_acc, 'valid': valid_acc}, epoch)
+                writer.add_scalars('f1', {'train': train_f1, 'valid': valid_f1}, epoch)
+
+            print(
+                f'Epoch: {epoch+1:>3d} | '
+                f'train loss: {train_loss:>.3f} | '
+                f'valid loss: {valid_loss:>.3f} | '
+                f'train acc: {train_acc:4.1f}% | '
+                f'valid acc: {valid_acc:4.1f}% | '
+                f'train f1: {train_f1:4.1f}% | '
+                f'valid f1: {valid_f1:4.1f}%'
+            )
+        else:
+            print(
+                f'Epoch: {epoch+1:>3d} | '
+                f'train loss: {train_loss:>.3f} | '
+                f'train acc: {train_acc:4.1f}% | '
+                f'train f1: {train_f1:4.1f}% | '
+            )
+
+            if tensorboard:
+                writer.add_scalars('loss', {'train': train_loss}, epoch)
+                writer.add_scalars('acc', {'train': train_acc}, epoch)
+                writer.add_scalars('f1', {'train': train_f1}, epoch)
