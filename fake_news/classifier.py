@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 
 from torch import Tensor
@@ -27,3 +28,6 @@ class FakeNewsClassifier(nn.Module):
         embeddings = embeddings.last_hidden_state[:, 0, :]
 
         return embeddings
+
+    def load_head(self, checkpoint_path: str):
+        self.head = torch.load(checkpoint_path)
