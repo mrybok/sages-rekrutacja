@@ -132,3 +132,5 @@ dmypy.json
 /.idea
 results/
 preprocessed/fake_news/embeddings/all.pkl
+embeddings.py
+tokenization.py
