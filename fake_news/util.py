@@ -20,6 +20,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data import TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 
+from common.util import check_for_gpu
 from fake_news.defaults import LABELS
 from fake_news.tokenizer import FakeNewsTokenizer
 from fake_news.classifier import FakeNewsClassifier
@@ -141,25 +142,6 @@ def split_data(stances: pd.DataFrame, valid_size: float = 0.1, seed: int = 0) ->
     new_stances['Split'] = stances.apply(lambda row: train_or_valid(row), axis=1)
 
     return new_stances
-
-
-def tokenize_texts(in_file: str, out_file: str, verbose: bool):
-    tokenizer = FakeNewsTokenizer()
-
-    tokenizer.load_text_dicts(in_file)
-    tokenizer.tokenize_texts(verbose)
-    tokenizer.save_text_dicts(out_file)
-
-
-def check_for_gpu(gpu: bool) -> str:
-    device = 'cpu'
-
-    if gpu and torch.cuda.is_available():
-        device = 'cuda'
-    elif gpu and not torch.cuda.is_available():
-        print('CUDA not available')
-
-    return device
 
 
 def get_embeddings(

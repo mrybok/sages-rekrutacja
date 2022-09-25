@@ -1,7 +1,7 @@
 import argparse
 import transformers
 
-from fake_news.util import tokenize_texts
+from common.util import tokenize_texts
 from fake_news.defaults import DEFAULT_TEXT_DICTS_PATH
 
 

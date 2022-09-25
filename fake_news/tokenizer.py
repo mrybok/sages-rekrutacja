@@ -1,44 +1,18 @@
 import torch
-import pickle
 import pandas as pd
 
 from tqdm.auto import tqdm
-from transformers import BertTokenizer
 from torch.utils.data import TensorDataset
 from torch.nn.utils.rnn import pad_sequence
 
+from common.tokenizer import CommonTokenizer
 
-class FakeNewsTokenizer:
+
+class FakeNewsTokenizer(CommonTokenizer):
 
     def __init__(self,):
-        self.tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
+        super().__init__()
         self.text_dicts = {'head': {}, 'body': {}}
-
-        self.CLS = self.tokenizer.cls_token_id
-        self.SEP = self.tokenizer.sep_token_id
-
-    def save_text_dicts(self, path: str):
-        with open(path, 'wb') as file:
-            pickle.dump(self.text_dicts, file)
-
-    def load_text_dicts(self, path: str):
-
-        # TODO ddd validation
-        with open(path, 'rb') as file:
-            self.text_dicts = pickle.load(file)
-
-    def tokenize_texts(self, verbose: bool = False):
-        total = sum([len(text_dict) for text_dict in self.text_dicts.values()])
-        pbar = tqdm(total=total, disable=not verbose, desc="tokenization")
-
-        for text_dict in self.text_dicts.values():
-            for text_id in text_dict:
-                text = text_dict[text_id]['text']
-                input_ids = self.tokenizer.encode(text, add_special_tokens=False)
-                text_dict[text_id]['input_ids'] = input_ids
-                pbar.update(1)
-
-        pbar.close()
 
     def get_bert_input(self, pairs: pd.DataFrame, verbose: bool = False) -> TensorDataset:
         assert list(pairs.columns) == ['Headline ID', 'Body ID'], 'wrong input format'
@@ -62,7 +36,6 @@ class FakeNewsTokenizer:
 
             body_input_ids = body_input_ids[:body_len]
 
-            # TODO find better variable naming
             input_id = [self.CLS, *head_input_ids, self.SEP, *body_input_ids, self.SEP]
             segment = [0] * (head_len + 2) + [1] * (body_len + 1)
             attention_mask = [1] * (body_len + head_len + 3)
