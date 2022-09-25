@@ -9,17 +9,21 @@ import torch.nn as nn
 import sklearn.metrics as metrics
 
 from typing import Dict
+from typing import List
+from typing import Tuple
+from typing import Optional
 from tqdm.auto import tqdm
 from tqdm.auto import trange
 from torch.optim import Adam
 from collections import Counter
-from fake_news.defaults import LABELS
 from torch.utils.data import DataLoader
 from torch.utils.data import TensorDataset
+from torch.utils.tensorboard import SummaryWriter
+
+from fake_news.defaults import LABELS
 from fake_news.tokenizer import FakeNewsTokenizer
 from fake_news.classifier import FakeNewsClassifier
 
-from torch.utils.tensorboard import SummaryWriter
 
 def score_to_prob(candidates: dict) -> np.array:
     """
@@ -157,6 +161,7 @@ def check_for_gpu(gpu: bool) -> str:
 
     return device
 
+
 def get_embeddings(
         stances: str,
         text_dicts: str,
@@ -210,12 +215,12 @@ def get_embeddings(
 def train_classifier_head(
         train_set: str,
         experiment_dir: str,
-        valid_set: str = None,
+        valid_set: Optional[str] = None,
         batch_size: int = 1,
         epochs: int = 100,
         gpu: bool = False,
         tensorboard: bool = False,
-):
+) -> Tuple[nn.Module, Dict[str, Dict[str, List[float]]]]:
     try:
         os.mkdir(experiment_dir)
     except OSError:
@@ -226,18 +231,10 @@ def train_classifier_head(
     writer = SummaryWriter(experiment_dir + '/tensorboard') if tensorboard else None
     history = {split: {'loss': [], 'acc': [], 'f1': []} for split in ['train', 'valid']}
 
-    with open(train_set, 'rb') as file:
-        train_dataset = pickle.load(file)
-
-    train_dataset = TensorDataset(*train_dataset.values())
-    loaders['train'] = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    loaders['train'] = get_data_loader(train_set, batch_size, True)
 
     if valid_set is not None:
-        with open(valid_set, 'rb') as file:
-            valid_dataset = pickle.load(file)
-
-        valid_dataset = TensorDataset(*valid_dataset.values())
-        loaders['valid'] = DataLoader(valid_dataset, batch_size=batch_size, shuffle=True)
+        loaders['valid'] = get_data_loader(valid_set, batch_size, False)
 
     model = FakeNewsClassifier()
     criterion = nn.CrossEntropyLoss()
@@ -281,32 +278,12 @@ def train_classifier_head(
         history['train']['f1'] += [train_f1]
 
         if valid_set is not None:
-            valid_loss = 0
-            valid_true = []
-            valid_pred = []
-
-            model.head.eval()
-
-            with torch.no_grad():
-                for data, target in loaders['valid']:
-                    valid_true += [target.numpy()]
-
-                    data = data.to(device)
-                    target = target.to(device)
-
-                    out = model(data)
-                    loss = criterion(out, target)
-                    valid_loss += loss.item()
-                    valid_pred += [torch.argmax(out, dim=1).cpu().numpy()]
+            valid_loss, valid_true, valid_pred = evaluate(model, loaders['valid'], device)
 
             if valid_loss < min_valid_loss:
                 min_valid_loss = valid_loss
                 torch.save(model.head, f'{experiment_dir}/classifier_best.pth')
 
-            valid_true = np.concatenate(valid_true)
-            valid_pred = np.concatenate(valid_pred)
-
-            valid_loss /= len(loaders['valid'])
             valid_acc = metrics.accuracy_score(valid_true, valid_pred) * 100
             valid_f1 = metrics.f1_score(valid_true, valid_pred, average='macro') * 100
 
@@ -346,5 +323,62 @@ def train_classifier_head(
 
     torch.save(model.head, f'{experiment_dir}/classifier_last.pth')
 
-def evaluate_model():
-    pass
+    return model, history
+
+
+def get_data_loader(dataset: str, batch_size: int = 1, shuffle: bool = False) -> DataLoader:
+    with open(dataset, 'rb') as file:
+        dataset = pickle.load(file)
+
+    dataset = TensorDataset(*dataset.values())
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+
+    return loader
+
+
+def evaluate(
+        model: nn.Module,
+        loader: DataLoader,
+        device: str = 'cpu'
+) -> Tuple[int, np.ndarray, np.ndarray]:
+    criterion = nn.CrossEntropyLoss()
+
+    y_true = []
+    y_pred = []
+    loss = 0
+
+    model.eval()
+
+    with torch.no_grad():
+        for data, target in loader:
+            y_true += [target.numpy()]
+
+            data = data.to(device)
+            target = target.to(device)
+
+            out = model(data)
+            loss += criterion(out, target).item()
+            y_pred += [torch.argmax(out, dim=1).cpu().numpy()]
+
+    loss /= len(loader)
+    y_true = np.concatenate(y_true)
+    y_pred = np.concatenate(y_pred)
+
+    return loss, y_true, y_pred
+
+
+def evaluate_wrapper(
+        checkpoint_path: str,
+        dataset: str,
+        batch_size: int = 1,
+        gpu: bool = False
+) -> Tuple[int, np.ndarray, np.ndarray]:
+    device = check_for_gpu(gpu)
+    model = FakeNewsClassifier()
+
+    model.load_head(checkpoint_path)
+    model.head.to(device)
+
+    loader = get_data_loader(dataset, batch_size, False)
+
+    return evaluate(model, loader, device)
