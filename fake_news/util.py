@@ -221,12 +221,13 @@ def train_classifier_head(
     except OSError:
         pass
 
-    writer = SummaryWriter(experiment_dir) if tensorboard else None
+    loaders = {}
+    min_valid_loss = np.inf
+    writer = SummaryWriter(experiment_dir + '/tensorboard') if tensorboard else None
+    history = {split: {'loss': [], 'acc': [], 'f1': []} for split in ['train', 'valid']}
 
     with open(train_set, 'rb') as file:
         train_dataset = pickle.load(file)
-
-    loaders = {}
 
     train_dataset = TensorDataset(*train_dataset.values())
     loaders['train'] = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
@@ -275,6 +276,10 @@ def train_classifier_head(
         train_acc = metrics.accuracy_score(train_true, train_pred) * 100
         train_f1 = metrics.f1_score(train_true, train_pred, average='macro') * 100
 
+        history['train']['loss'] += [train_loss]
+        history['train']['acc'] += [train_acc]
+        history['train']['f1'] += [train_f1]
+
         if valid_set is not None:
             valid_loss = 0
             valid_true = []
@@ -294,12 +299,20 @@ def train_classifier_head(
                     valid_loss += loss.item()
                     valid_pred += [torch.argmax(out, dim=1).cpu().numpy()]
 
+            if valid_loss < min_valid_loss:
+                min_valid_loss = valid_loss
+                torch.save(model.head, f'{experiment_dir}/classifier_best.pth')
+
             valid_true = np.concatenate(valid_true)
             valid_pred = np.concatenate(valid_pred)
 
             valid_loss /= len(loaders['valid'])
             valid_acc = metrics.accuracy_score(valid_true, valid_pred) * 100
             valid_f1 = metrics.f1_score(valid_true, valid_pred, average='macro') * 100
+
+            history['valid']['loss'] += [valid_loss]
+            history['valid']['acc'] += [valid_acc]
+            history['valid']['f1'] += [valid_f1]
 
             if tensorboard:
                 writer.add_scalars('loss', {'train': train_loss, 'valid': valid_loss}, epoch)
@@ -327,3 +340,11 @@ def train_classifier_head(
                 writer.add_scalars('loss', {'train': train_loss}, epoch)
                 writer.add_scalars('acc', {'train': train_acc}, epoch)
                 writer.add_scalars('f1', {'train': train_f1}, epoch)
+
+    with open(f'{experiment_dir}/history.pkl', 'wb') as file:
+        pickle.dump(history, file)
+
+    torch.save(model.head, f'{experiment_dir}/classifier_last.pth')
+
+def evaluate_model():
+    pass
