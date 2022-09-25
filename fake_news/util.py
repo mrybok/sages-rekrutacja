@@ -167,16 +167,18 @@ def get_embeddings(
     model = FakeNewsClassifier()
 
     model.bert.to(device)
+    model.eval()
 
-    for input_ids, segments, mask in tqdm(loader, desc='Embedding', disable=not verbose):
-        input_ids = input_ids.to(device)
-        segments = segments.to(device)
-        mask = mask.to(device)
+    with torch.no_grad():
+        for input_ids, segments, mask in tqdm(loader, desc='Embedding', disable=not verbose):
+            input_ids = input_ids.to(device)
+            segments = segments.to(device)
+            mask = mask.to(device)
 
-        out = model.get_embeddings(input_ids, segments, mask)
-        out = out.detach().cpu()
+            out = model.get_embeddings(input_ids, segments, mask)
+            out = out.detach().cpu()
 
-        embeddings['X'] += [out]
+            embeddings['X'] += [out]
 
     embeddings['X'] = torch.cat(embeddings['X'])
 
