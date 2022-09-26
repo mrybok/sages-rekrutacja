@@ -1,6 +1,11 @@
 # sages-rekrutacja
 
 ---
+❗Post-deadline Update (26.09.2022 02:00) / Disclaimer ❗
+- The clean version of this repository with things that I did not manage to do on time is in the 
+`post-deadline` branch.
+
+---
 ## Dependencies
 `pip install requirements.txt`
 
