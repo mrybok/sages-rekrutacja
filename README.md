@@ -159,7 +159,7 @@ tokenize_texts(
 )
 ```
 Tokenizes each text in the saved `text_dicts` to prepare it for BERT processing.
-- `in_file` - path to pickled `text_dicts` dictionary with Headline & Body texts
+- `in_file` - path to pickled `text_dicts` dictionary with Tweet texts
 - `out_file` - where to save updated `text_dicts` dictionary with `input_ids` fields populated
 - `verbose` - whether to log tokenization progress with tqdm
 ```
@@ -174,5 +174,42 @@ text_dicts = {
 ```
 Ready `text_dicts` dictionary after tokenization is in `preprocessed/tweets/data/text_dicts.pkl`
 
+### Embeddings
+```
+from tweets.util import get_embeddings
 
-### Embedding
+for split in ['train', 'valid', 'test']:
+    get_embeddings(
+        tweets=f'preprocessed/tweets/data/{split}.csv',
+        text_dicts='preprocessed/tweets/data/text_dicts.pkl',
+        output_file=f'preprocessed/tweets/embeddings/{split}.pkl',
+        batch_size=1,
+        gpu=True,
+        verbose=True,
+        save=True
+    )
+```
+Feeds the tokenized Tweets to BERT, to produce contextualized embeddings.
+Extracts the output < CLS > token representations, concatenates the time encodings with BERT 
+embeddings. Saves the embeddings for classifier head usage. The output 
+file holds a dictionary of format `{'X': embeddings, 'y': stance_targets}`, where `embeddings` and 
+`stance_targets` are torch tensors. The above use case embeds all the dataset splits.
+- `tweets` - path to .csv file with following columns: `'target', 'id', 'sin day', 'cos day', 
+'sin hour', 'cos hour'`. `'target'` field is optional. If the table has `'target'` column the 
+embeddings will be saved together with `"y"` polarity targets. Otherwise, only embeddings `"X"` are 
+saved (`"y"` field is empty).
+- all other inputs as in Fake News pipeline
+
+Ready embeddings are saved in `preprocessed/tweets/embeddings/`.
+
+The training and evaluation parts are as in Fake News pipeline.
+The only difference is that the tweets function also accept `use_time_rep` flag, which determines
+whether the classifier head uses the tweet time encodings during training / evaluation. The flag
+also determines the dimensionality of the classifier head input. When `use_time_rep` is True the
+loaded classifier head must have 772 input dimensions, otherwise 768.
+
+A trained classifier head using the time encodings is available in 
+`models/tweets/tweets_classifier.pth`.
+
+The `Tweets_Train.ipynb` notebook in `notebooks/tweets/` also demonstrates the more detailed 
+training pipeline.
