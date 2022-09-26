@@ -1,6 +1,7 @@
 import os
 import torch
 import pickle
+import random
 
 import numpy as np
 import pandas as pd
@@ -164,6 +165,7 @@ def get_embeddings(
 
     embeddings = {'X': [], 'y': []}
 
+    # Save target stances if available
     if 'Stance' in stances.columns:
         ys = [LABELS[stance] for stance in stances['Stance']]
         embeddings['y'] = torch.tensor(ys)
@@ -201,12 +203,17 @@ def train_classifier_head(
         batch_size: int = 1,
         epochs: int = 100,
         gpu: bool = False,
+        seed: int = 0,
         tensorboard: bool = False,
 ) -> Tuple[nn.Module, Dict[str, Dict[str, List[float]]]]:
     try:
         os.mkdir(experiment_dir)
     except OSError:
         pass
+
+    random.seed(seed)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
 
     loaders = {}
     min_valid_loss = np.inf
@@ -223,6 +230,7 @@ def train_classifier_head(
     optim = Adam(model.head.parameters())
     device = check_for_gpu(gpu)
 
+    # Do not waste gpu space on BERT or its computational graph
     model.eval()
     model.head.to(device)
 
@@ -262,6 +270,7 @@ def train_classifier_head(
         if valid_set is not None:
             valid_loss, valid_true, valid_pred = evaluate(model, loaders['valid'], device)
 
+            # Save best model
             if valid_loss < min_valid_loss:
                 min_valid_loss = valid_loss
                 torch.save(model.head, f'{experiment_dir}/classifier_best.pth')
@@ -300,6 +309,7 @@ def train_classifier_head(
                 writer.add_scalars('acc', {'train': train_acc}, epoch)
                 writer.add_scalars('f1', {'train': train_f1}, epoch)
 
+    # Save performance history & last model checkpoint
     with open(f'{experiment_dir}/history.pkl', 'wb') as file:
         pickle.dump(history, file)
 

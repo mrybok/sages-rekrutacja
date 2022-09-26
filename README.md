@@ -17,7 +17,7 @@ or
 
 ---
 
-## Fake News Pipeline
+# Fake News Pipeline
 
 `Fake_News_Preprocessing.ipynb` notebook in `notebooks/fake_news` prepares the data.
 The results of the preprocessing are already saved in `preprocessed/fake_news/data/`, so there is no
@@ -97,6 +97,7 @@ train_classifier_head(
     batch_size=1024,
     epochs=100,
     gpu=True,
+    seed=0,
     tensorboard=True
 )
 ```
@@ -114,6 +115,7 @@ being torch tensors.
 - `batch_size` - feed the embeddings into classifier head in batches of given size
 - `epochs` - how long to train for
 - `gpu` - whether to use CUDA in training
+- `seed` - seed for random number generator & reproducibility
 - `tensorboard` - whether to log a training process with tensorboard
 
 A trained classifier head is available in `models/fake_news/fake_news_classifier.pth`.
@@ -141,7 +143,7 @@ The `Fake_News_Train.ipynb` notebook in `notebooks/fake_news/` also demonstrates
 training pipeline.
 
 ---
-## Tweets Pipeline
+# Tweets Pipeline
 `Tweets_Preprocessing.ipynb` notebook in `notebooks/tweets` prepares the data.
 The results of the preprocessing are already saved in `preprocessed/tweets/data/`, so there is no
 need to rerun the notebook.
