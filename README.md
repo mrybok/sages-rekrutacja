@@ -213,3 +213,7 @@ A trained classifier head using the time encodings is available in
 
 The `Tweets_Train.ipynb` notebook in `notebooks/tweets/` also demonstrates the more detailed 
 training pipeline.
+
+---
+## TO DO:
+- Add function doc-strings & signatures
