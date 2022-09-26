@@ -18,10 +18,11 @@ from tqdm.auto import trange
 from torch.optim import Adam
 from collections import Counter
 from torch.utils.data import DataLoader
-from torch.utils.data import TensorDataset
 from torch.utils.tensorboard import SummaryWriter
 
 from common.util import check_for_gpu
+from common.util import get_data_loader
+
 from fake_news.defaults import LABELS
 from fake_news.tokenizer import FakeNewsTokenizer
 from fake_news.classifier import FakeNewsClassifier
@@ -250,7 +251,7 @@ def train_classifier_head(
             out = model(data)
             loss = criterion(out, target)
             train_loss += loss.item()
-            train_pred += [torch.argmax(out, dim=1).cpu().numpy()]
+            train_pred += [torch.argmax(out, dim=1).detach().cpu().numpy()]
 
             optim.zero_grad()
             loss.backward()
@@ -316,16 +317,6 @@ def train_classifier_head(
     torch.save(model.head, f'{experiment_dir}/classifier_last.pth')
 
     return model, history
-
-
-def get_data_loader(dataset: str, batch_size: int = 1, shuffle: bool = False) -> DataLoader:
-    with open(dataset, 'rb') as file:
-        dataset = pickle.load(file)
-
-    dataset = TensorDataset(*dataset.values())
-    loader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
-
-    return loader
 
 
 def evaluate(
