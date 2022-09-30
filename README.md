@@ -192,8 +192,8 @@ for split in ['train', 'valid', 'test']:
 Feeds the tokenized Tweets to BERT, to produce contextualized embeddings.
 Extracts the output < CLS > token representations, concatenates the time encodings with BERT 
 embeddings. Saves the embeddings for classifier head usage. The output 
-file holds a dictionary of format `{'X': embeddings, 'y': stance_targets}`, where `embeddings` and 
-`stance_targets` are torch tensors. The above use case embeds all the dataset splits.
+file holds a dictionary of format `{'X': embeddings, 'y': polarity_targets}`, where `embeddings` and 
+`polarity_targets` are torch tensors. The above use case embeds all the dataset splits.
 - `tweets` - path to .csv file with following columns: `'target', 'id', 'sin day', 'cos day', 
 'sin hour', 'cos hour'`. `'target'` field is optional. If the table has `'target'` column the 
 embeddings will be saved together with `"y"` polarity targets. Otherwise, only embeddings `"X"` are 
