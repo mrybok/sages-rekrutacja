@@ -202,6 +202,9 @@ def train_classifier_head(
         experiment_dir: str,
         valid_set: Optional[str] = None,
         batch_size: int = 1,
+        input_dim: int = 768,
+        hidden_dim: Optional[int] = None,
+        weight_decay: float = 0,
         epochs: int = 100,
         gpu: bool = False,
         seed: int = 0,
@@ -226,9 +229,9 @@ def train_classifier_head(
     if valid_set is not None:
         loaders['valid'] = get_data_loader(valid_set, batch_size, False)
 
-    model = FakeNewsClassifier()
+    model = FakeNewsClassifier(input_dim, hidden_dim)
     criterion = nn.CrossEntropyLoss()
-    optim = Adam(model.head.parameters())
+    optim = Adam(model.head.parameters(), weight_decay=weight_decay)
     device = check_for_gpu(gpu)
 
     # Do not waste gpu space on BERT or its computational graph
@@ -354,10 +357,12 @@ def evaluate_wrapper(
         checkpoint_path: str,
         dataset: str,
         batch_size: int = 1,
+        input_dim: int = 768,
+        hidden_dim: Optional[int] = None,
         gpu: bool = False
 ) -> Tuple[int, np.ndarray, np.ndarray]:
     device = check_for_gpu(gpu)
-    model = FakeNewsClassifier()
+    model = FakeNewsClassifier(input_dim, hidden_dim)
 
     model.load_head(checkpoint_path)
     model.head.to(device)

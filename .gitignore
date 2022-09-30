@@ -133,3 +133,5 @@ dmypy.json
 results/
 preprocessed/fake_news/embeddings/all.pkl
 preprocessed/tweets/embeddings/all.pkl
+improvements/
+preprocessed/fake_news/all_embeddings/

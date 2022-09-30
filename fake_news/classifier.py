@@ -2,16 +2,25 @@ import torch
 import torch.nn as nn
 
 from torch import Tensor
+from typing import Optional
 from transformers import BertModel
 
 
 class FakeNewsClassifier(nn.Module):
 
-    def __init__(self):
+    def __init__(self, input_dim: int = 768, hidden_dim: Optional[int] = None):
         super().__init__()
 
         self.bert = BertModel.from_pretrained("bert-base-uncased")
-        self.head = nn.Linear(768, 4)
+
+        if hidden_dim is not None:
+            self.head = nn.Sequential(
+                nn.Linear(input_dim, hidden_dim),
+                nn.ReLU(),
+                nn.Linear(hidden_dim, 4)
+            )
+        else:
+            self.head = nn.Linear(input_dim,  4)
 
     def forward(self, *args) -> Tensor:
         assert len(args) in [1, 3], 'wrong number of parameters'
