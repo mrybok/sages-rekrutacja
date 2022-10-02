@@ -205,6 +205,7 @@ def train_classifier_head(
         input_dim: int = 768,
         hidden_dim: Optional[int] = None,
         weight_decay: float = 0,
+        weights: Optional[torch.Tensor] = None,
         epochs: int = 100,
         gpu: bool = False,
         seed: int = 0,
@@ -214,6 +215,11 @@ def train_classifier_head(
         os.mkdir(experiment_dir)
     except OSError:
         pass
+
+    device = check_for_gpu(gpu)
+
+    weights = weights if weights is not None else torch.ones(4)
+    weights = weights.to(device)
 
     random.seed(seed)
     torch.manual_seed(seed)
@@ -230,9 +236,8 @@ def train_classifier_head(
         loaders['valid'] = get_data_loader(valid_set, batch_size, False)
 
     model = FakeNewsClassifier(input_dim, hidden_dim)
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss(weights)
     optim = Adam(model.head.parameters(), weight_decay=weight_decay)
-    device = check_for_gpu(gpu)
 
     # Do not waste gpu space on BERT or its computational graph
     model.eval()
@@ -272,7 +277,7 @@ def train_classifier_head(
         history['train']['f1'] += [train_f1]
 
         if valid_set is not None:
-            valid_loss, valid_true, valid_pred = evaluate(model, loaders['valid'], device)
+            valid_loss, valid_true, valid_pred = evaluate(model, loaders['valid'], device, criterion)
 
             # Save best model
             if valid_loss < min_valid_loss:
@@ -325,9 +330,10 @@ def train_classifier_head(
 def evaluate(
         model: nn.Module,
         loader: DataLoader,
-        device: str = 'cpu'
+        device: str = 'cpu',
+        criterion: Optional[nn.CrossEntropyLoss] = None
 ) -> Tuple[int, np.ndarray, np.ndarray]:
-    criterion = nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss() if criterion is None else criterion
 
     y_true = []
     y_pred = []
